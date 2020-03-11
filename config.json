@@ -1,0 +1,13 @@
+{
+    "field_rows": 20,
+    "field_cols": 20,
+    "size_snake": 20,
+    "border_size": 5,
+    "speed": 10,
+    "max_steps": 500,
+    "weights_file": "",
+    "save_file": "snake.hdf5",
+    "games_number": 200,
+    "epsilon": 0.8,
+    "delta_epsilon": 0.01
+}
