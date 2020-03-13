@@ -83,9 +83,19 @@ class Game:
             self.player.display(self)
         else:
             pygame.time.wait(300)
+        pygame.display.update()
+    
+    def make_step(self, agent):
+        state = agent.get_state(self, self.player, self.food)
+        prediction = agent.model.predict(state.reshape((1,12)))
+        action = to_categorical(np.argmax(prediction[0]), num_classes=3)
+        self.player.move(action, self.player.x, self.player.y, self, self.food)
+        if self.speed > 0:
+            self.display()
+            pygame.time.wait(self.speed)
 
 
-    def make_step(self, agent, action=None):
+    def make_train_step(self, agent, action=None):
         state_old = agent.get_state(self, self.player, self.food)
         if not action:
             if random.random() > agent.epsilon:
@@ -177,7 +187,6 @@ class Player(object):
             posX = x_temp * game.size_snake + game.border_size
             posY = y_temp * game.size_snake + game.border_size
             pygame.draw.rect(game.pygame_display, game.snake_color, [posX + 1,posY + 1, game.size_snake - 2, game.size_snake - 2])
-        pygame.display.update()
 
 class Food(object):
 
@@ -198,4 +207,3 @@ class Food(object):
         posX = self.x * game.size_snake + game.border_size
         posY = self.y * game.size_snake + game.border_size
         pygame.draw.circle(game.pygame_display, game.food_color, (posX + game.size_snake // 2, posY + game.size_snake // 2), game.size_snake // 2)
-        pygame.display.update()

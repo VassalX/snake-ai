@@ -19,6 +19,8 @@ class SnakeAgent(object):
     def __init__(self, epsilon, weights_file):
         self.reward = 0
         self.gamma = 0.9
+        self.neurons = 130
+        self.max_memory = 1000
         self.dataframe = pd.DataFrame()
         self.agent_target = 1
         self.agent_predict = 0
@@ -112,13 +114,13 @@ class SnakeAgent(object):
     def change_reward(self, player, crash):
         self.reward = 0
         if crash:
-            self.reward = -15
+            self.reward = -10
             return self.reward
         if player.must_grow:
             self.reward = 10
             return self.reward
         if self.new_to_food < self.old_to_food:
-            self.reward = 1
+            self.reward = 0.1
         elif self.new_to_food > self.old_to_food:
             self.reward = -0.1
         return self.reward
@@ -126,31 +128,31 @@ class SnakeAgent(object):
     def network(self, weights=None):
         model = Sequential()
 
-        model.add(Dense(units=130, input_dim=12))
+        model.add(Dense(units = self.neurons, input_dim = 12))
         model.add(Activation('relu'))
         model.add(Dropout(0.14))
 
-        model.add(Dense(units=130))
+        model.add(Dense(units = self.neurons))
         model.add(Activation('relu'))
         model.add(Dropout(0.14))
 
-        model.add(Dense(units=130))
+        model.add(Dense(units = self.neurons))
         model.add(Activation('relu'))
         model.add(Dropout(0.14))
 
-        model.add(Dense(units=3))
+        model.add(Dense(units = 3))
         model.add(Activation('softmax'))
 
         opt = Adam(self.learning_rate)
-        model.compile(loss='mse', optimizer=opt)
+        model.compile(loss = 'mse', optimizer = opt)
 
         if weights:
             model.load_weights(weights)
         return model
 
     def replay_new(self, memory):
-        if len(memory) > 1000:
-            mem_part = random.sample(memory, 1000)
+        if len(memory) > self.max_memory:
+            mem_part = random.sample(memory, self.max_memory)
         else:
             mem_part = memory
         for state, next_state, action, reward, done in mem_part:

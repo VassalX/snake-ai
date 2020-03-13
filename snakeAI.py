@@ -22,7 +22,8 @@ weights_file = ""
 save_file = "weights.hdf5"
 games_number = 10
 epsilon = 0.8
-delta_epsilon = 0.01 
+delta_epsilon = 0.01
+train = True
 
 with open('config.json') as json_file:
     data = json.load(json_file)
@@ -37,6 +38,7 @@ with open('config.json') as json_file:
     save_file = data["save_file"]
     epsilon = data["epsilon"]
     delta_epsilon = data["delta_epsilon"]
+    train = data["train"]
 
 def show_result(array_num, array_score):
     x = np.asarray(array_num)
@@ -51,32 +53,41 @@ def show_result(array_num, array_score):
     plt.legend(loc='best')
     plt.show()
 
-def play_game(agent):
+def play_train_game(agent):
     game = Game(field_cols, field_rows, size_snake, border_size,
         border_color, background_color, food_color, snake_color,
         speed, max_steps)
 
-    game.make_step(agent,[1, 0, 0])
+    game.make_train_step(agent,[1, 0, 0])
     agent.replay_new(agent.memory)
 
+    while not game.game_over:
+        game.make_train_step(agent)
+    return game.score
+
+def play_game(agent):
+    game = Game(field_cols, field_rows, size_snake, border_size,
+        border_color, background_color, food_color, snake_color,
+        speed, max_steps)
+    
     while not game.game_over:
         game.make_step(agent)
     return game.score
 
-def start():
-    pygame.init()
-    agent = SnakeAgent(epsilon, weights_file)
-    array_score = []
-    array_num = []
-    for game_num in range(games_number):
-        score = play_game(agent)
+pygame.init()
+agent = SnakeAgent(epsilon, weights_file)
+array_score = []
+array_num = []
+for game_num in range(games_number):
+    if train:
+        score = play_train_game(agent)
         agent.epsilon -= delta_epsilon
-        game_num += 1
-        print('#', game_num, '\tScore -', score)
-        array_score.append(score)
-        array_num.append(game_num)
-    show_result(array_num, array_score)
+    else:
+        score = play_game(agent)
+    game_num += 1
+    print('#', game_num, '\tScore -', score)
+    array_score.append(score)
+    array_num.append(game_num)
+show_result(array_num, array_score)
+if train:
     agent.model.save_weights(save_file)
-    return
-
-start()
