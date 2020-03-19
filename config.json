@@ -11,6 +11,6 @@
     "epsilon": 0.8,
     "delta_epsilon": 0.01,
     "train": true,
-    "gamma": 0.85,
+    "gamma": 0.90,
     "alpha": 0.0005
 }

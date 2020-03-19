@@ -63,7 +63,7 @@ def play_train_game(agent):
         speed, max_steps)
 
     game.make_train_step(agent,[1, 0, 0])
-    agent.replay(agent.memory)
+    agent.replay()
 
     while not game.game_over:
         game.make_train_step(agent)
