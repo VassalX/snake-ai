@@ -1,6 +1,6 @@
 import pygame
 import numpy as np
-from DQN import SnakeAgent
+from snakeAgent import SnakeAgent
 import matplotlib.pyplot as plt
 import random
 import json
@@ -24,6 +24,8 @@ games_number = 10
 epsilon = 0.8
 delta_epsilon = 0.01
 train = True
+alpha = 0.0005
+gamma = 0.9
 
 with open('config.json') as json_file:
     data = json.load(json_file)
@@ -39,6 +41,8 @@ with open('config.json') as json_file:
     epsilon = data["epsilon"]
     delta_epsilon = data["delta_epsilon"]
     train = data["train"]
+    alpha = data["alpha"]
+    gamma = data["gamma"]
 
 def show_result(array_num, array_score):
     x = np.asarray(array_num)
@@ -59,7 +63,7 @@ def play_train_game(agent):
         speed, max_steps)
 
     game.make_train_step(agent,[1, 0, 0])
-    agent.replay_new(agent.memory)
+    agent.replay(agent.memory)
 
     while not game.game_over:
         game.make_train_step(agent)
@@ -75,7 +79,7 @@ def play_game(agent):
     return game.score
 
 pygame.init()
-agent = SnakeAgent(epsilon, weights_file)
+agent = SnakeAgent(epsilon, gamma, alpha, weights_file)
 array_score = []
 array_num = []
 for game_num in range(games_number):

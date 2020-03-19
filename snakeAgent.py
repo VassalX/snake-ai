@@ -3,10 +3,10 @@ from keras.models import Sequential
 from keras.layers.core import Activation, Dropout, Dense
 import random
 import numpy as np
-import pandas as pd
 from enum import Enum
 from operator import add
 import math
+import json
 
 class Direction(Enum):
     NORTH = 1
@@ -16,15 +16,14 @@ class Direction(Enum):
 
 class SnakeAgent(object):
 
-    def __init__(self, epsilon, weights_file):
+    def __init__(self, epsilon, gamma, alpha, weights_file):
         self.reward = 0
-        self.gamma = 0.9
-        self.neurons = 130
+        self.gamma = gamma
+        self.neurons = 120
         self.max_memory = 1000
-        self.dataframe = pd.DataFrame()
         self.agent_target = 1
         self.agent_predict = 0
-        self.learning_rate = 0.0005
+        self.alpha = alpha
         self.model = self.network()
         if len(weights_file)>0:
             self.model = self.network(weights_file)
@@ -100,10 +99,14 @@ class SnakeAgent(object):
             dangers[1],
             dangers[2],
 
-            player.x_speed == -1, player.x_speed == 1,
-            player.y_speed == -1, player.y_speed == 1,
-            food.x < player.x, food.x > player.x,
-            food.y < player.y, food.y > player.y,
+            player.x_speed == -1, 
+            player.x_speed == 1,
+            player.y_speed == -1, 
+            player.y_speed == 1,
+            food.x < player.x, 
+            food.x > player.x,
+            food.y < player.y, 
+            food.y > player.y,
             self.new_to_food < self.old_to_food
             ]
         
@@ -114,13 +117,13 @@ class SnakeAgent(object):
     def change_reward(self, player, crash):
         self.reward = 0
         if crash:
-            self.reward = -10
+            self.reward = -20
             return self.reward
         if player.must_grow:
             self.reward = 10
             return self.reward
         if self.new_to_food < self.old_to_food:
-            self.reward = 0.1
+            self.reward = 0.2
         elif self.new_to_food > self.old_to_food:
             self.reward = -0.1
         return self.reward
@@ -143,18 +146,18 @@ class SnakeAgent(object):
         model.add(Dense(units = 3))
         model.add(Activation('softmax'))
 
-        opt = Adam(self.learning_rate)
+        opt = Adam(self.alpha)
         model.compile(loss = 'mse', optimizer = opt)
 
         if weights:
             model.load_weights(weights)
         return model
 
-    def replay_new(self, memory):
-        if len(memory) > self.max_memory:
-            mem_part = random.sample(memory, self.max_memory)
+    def replay(self):
+        if len(self.memory) > self.max_memory:
+            mem_part = random.sample(self.memory, self.max_memory)
         else:
-            mem_part = memory
+            mem_part = self.memory
         for state, next_state, action, reward, done in mem_part:
             target = reward
             if not done:

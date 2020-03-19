@@ -2,7 +2,7 @@ import pygame
 import numpy as np
 import random
 from enum import Enum
-from DQN import SnakeAgent
+from snakeAgent import SnakeAgent
 from keras.utils import to_categorical
 
 class Action(Enum):
