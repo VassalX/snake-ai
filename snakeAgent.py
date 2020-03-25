@@ -86,40 +86,43 @@ class SnakeAgent(object):
             ]
         return result
 
-    def get_state(self, game, player, food):
-        a = player.position[-1][0]-food.x
-        b = player.position[-1][1]-food.y
+    def get_state(self, game):
+        a = game.player.position[-1][0]-game.food.x
+        b = game.player.position[-1][1]-game.food.y
         self.old_to_food = self.new_to_food
         self.new_to_food = math.sqrt(a*a+b*b)
 
-        dangers = self.get_dir_dangers(game,player)
+        dangers = self.get_dir_dangers(game,game.player)
 
         state = [
             dangers[0],
             dangers[1],
             dangers[2],
 
-            player.x_speed == -1, 
-            player.x_speed == 1,
-            player.y_speed == -1, 
-            player.y_speed == 1,
-            food.x < player.x, 
-            food.x > player.x,
-            food.y < player.y, 
-            food.y > player.y,
+            game.player.x_speed == -1, 
+            game.player.x_speed == 1,
+            game.player.y_speed == -1, 
+            game.player.y_speed == 1,
+            game.food.x < game.player.x, 
+            game.food.x > game.player.x,
+            game.food.y < game.player.y, 
+            game.food.y > game.player.y,
             self.new_to_food < self.old_to_food
             ]
         
         real_state = [1 if s else 0 for s in state]
 
         return np.array(real_state)
+    
+    def get_prediction(self, state):
+        return self.model.predict(state.reshape((1,12)))
 
-    def change_reward(self, player, crash):
+    def get_reward(self, game):
         self.reward = 0
-        if crash:
+        if game.game_over:
             self.reward = -20
             return self.reward
-        if player.must_grow:
+        if game.player.must_grow:
             self.reward = 10
             return self.reward
         if self.new_to_food < self.old_to_food:
@@ -158,18 +161,19 @@ class SnakeAgent(object):
             mem_part = random.sample(self.memory, self.max_memory)
         else:
             mem_part = self.memory
-        for state, next_state, action, reward, done in mem_part:
+        for state_old, state_new, action, reward, done in mem_part:
             target = reward
             if not done:
-                target = reward + self.gamma * np.amax(self.model.predict(np.array([next_state]))[0])
-            target_f = self.model.predict(np.array([state]))
+                target = reward + self.gamma * np.amax(self.model.predict(np.array([state_new]))[0])
+            target_f = self.model.predict(np.array([state_old]))
             target_f[0][np.argmax(action)] = target
-            self.model.fit(np.array([state]), target_f, epochs=1, verbose=0)
+            self.model.fit(np.array([state_old]), target_f, epochs=1, verbose=0)
 
-    def train_short_memory(self, next_state, state, action, reward, done):
+    def train_short_memory(self, state_old, state_new, action, reward, done):
         target = reward
         if not done:
-            target = reward + self.gamma * np.amax(self.model.predict(next_state.reshape((1, 12)))[0])
-        target_f = self.model.predict(state.reshape((1, 12)))
+            target = reward + self.gamma * np.amax(self.model.predict(state_new.reshape((1, 12)))[0])
+        target_f = self.model.predict(state_old.reshape((1, 12)))
         target_f[0][np.argmax(action)] = target
-        self.model.fit(state.reshape((1, 12)), target_f, epochs=1, verbose=0)
+        self.model.fit(state_old.reshape((1, 12)), target_f, epochs=1, verbose=0)
+        self.memory.append((state_old, state_new, action, reward, done))

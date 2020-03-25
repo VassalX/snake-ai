@@ -46,7 +46,7 @@ class Game:
             if self.score > Game.record:
                 Game.record = self.score
 
-    def display_ui(self):
+    def show_ui(self):
         font_bold = pygame.font.SysFont('arial', 15, True)
 
         black = pygame.Color('black')
@@ -57,59 +57,58 @@ class Game:
         record_txt = font_bold.render('THE BEST SCORE: ', True, black)
         record_num_txt = font_bold.render(str(Game.record), True, black)
 
-        self.display_txt(score_txt, self.border_size, self.rows * self.size_snake + self.border_size * 2)
-        self.display_txt(score_num_txt, 160, self.rows * self.size_snake + self.border_size * 2)
+        self.show_txt(score_txt, self.border_size, self.rows * self.size_snake + self.border_size * 2)
+        self.show_txt(score_num_txt, 160, self.rows * self.size_snake + self.border_size * 2)
 
-        self.display_txt(record_txt, self.border_size, self.rows * self.size_snake + self.border_size * 2 + 20)
-        self.display_txt(record_num_txt, 160, self.rows * self.size_snake + self.border_size * 2 + 20)
+        self.show_txt(record_txt, self.border_size, self.rows * self.size_snake + self.border_size * 2 + 20)
+        self.show_txt(record_num_txt, 160, self.rows * self.size_snake + self.border_size * 2 + 20)
         
-        self.display_border()
+        self.show_border()
 
-    def display_txt(self,txt, x, y):
+    def show_txt(self,txt, x, y):
         self.pygame_display.blit(txt,(x,y))
 
-    def display_border(self):
+    def show_border(self):
         pygame.draw.rect(self.pygame_display, self.border_color, [0,0, self.window_width, self.border_size])
         pygame.draw.rect(self.pygame_display, self.border_color, [self.window_width - self.border_size, 0, self.border_size, self.window_height])
         pygame.draw.rect(self.pygame_display, self.border_color, [0, self.window_height - self.border_size, self.window_width, self.border_size])
         pygame.draw.rect(self.pygame_display, self.border_color, [0, self.border_size, self.border_size, self.window_height - self.border_size - self.border_size])
 
 
-    def display(self):
+    def show(self):
         self.pygame_display.fill(self.background_color)
-        self.display_ui()
+        self.show_ui()
         if not self.game_over:
-            self.food.display(self)
-            self.player.display(self)
+            self.food.show(self)
+            self.player.show(self)
         else:
             pygame.time.wait(300)
-        pygame.display.update()
+        pygame.show.update()
     
     def make_step(self, agent):
-        state = agent.get_state(self, self.player, self.food)
-        prediction = agent.model.predict(state.reshape((1,12)))
+        state = agent.get_state(self)
+        prediction = agent.get_prediction(state)
         action = to_categorical(np.argmax(prediction[0]), num_classes=3)
-        self.player.move(action, self.player.x, self.player.y, self, self.food)
+        self.player.move(action,self)
         if self.speed > 0:
-            self.display()
+            self.show()
             pygame.time.wait(self.speed)
 
 
     def make_train_step(self, agent, action=None):
-        state_old = agent.get_state(self, self.player, self.food)
+        state_old = agent.get_state(self)
         if not action:
             if random.random() > agent.epsilon:
-                prediction = agent.model.predict(state_old.reshape((1,12)))
+                prediction = agent.get_prediction(state_old)
                 action = to_categorical(np.argmax(prediction[0]), num_classes=3)
             else:
                 action = to_categorical(random.randint(0, 2), num_classes=3)
-        self.player.move(action, self.player.x, self.player.y, self, self.food)
-        state_new = agent.get_state(self, self.player, self.food)
-        reward = agent.change_reward(self.player, self.game_over)
+        self.player.move(action, self)
+        state_new = agent.get_state(self)
+        reward = agent.get_reward(self)
         agent.train_short_memory(state_old, state_new, action, reward, self.game_over)
-        agent.memory.append((state_old, state_new, action, reward, self.game_over))
         if self.speed > 0:
-            self.display()
+            self.show()
             pygame.time.wait(self.speed)
 
 class Player(object):
@@ -124,7 +123,7 @@ class Player(object):
         self.x_speed = 1
         self.y_speed = 0
 
-    def update_position(self, x, y):
+    def update(self, x, y):
         if self.position[-1] != [x,y]:
             if self.length > 1:
                 for i in range(0, self.length - 1):
@@ -133,7 +132,7 @@ class Player(object):
             self.position[-1][0] = x
             self.position[-1][1] = y
 
-    def move(self, action, x, y, game, food):
+    def move(self, action, game):
         move_array = [self.x_speed, self.y_speed]
 
         if self.must_grow:
@@ -171,17 +170,21 @@ class Player(object):
 
         self.x_speed = move_array[0]
         self.y_speed = move_array[1]
-        self.x = self.x_speed + x
-        self.y = self.y_speed + y
+        self.x += self.x_speed
+        self.y += self.y_speed
 
         if game.eat_time >= game.max_steps or self.x < 0 or self.x >= game.cols or self.y < 0 or self.y >= game.rows or [self.x, self.y] in self.position:
             game.game_over = True
         
         game.eat()
 
-        self.update_position(self.x, self.y)
+        if self.position[-1] != [self.x, self.y]:
+            if self.length > 1:
+                for i in range(0, self.length - 1):
+                    self.position[i] = self.position[i + 1]
+            self.position[-1] = [self.x, self.y]
 
-    def display(self, game):
+    def show(self, game):
         for i in range(self.length):
             x_temp, y_temp = self.position[i]
             posX = x_temp * game.size_snake + game.border_size
@@ -203,7 +206,7 @@ class Food(object):
         else:
             return self.x, self.y
 
-    def display(self,game):
+    def show(self,game):
         posX = self.x * game.size_snake + game.border_size
         posY = self.y * game.size_snake + game.border_size
         pygame.draw.circle(game.pygame_display, game.food_color, (posX + game.size_snake // 2, posY + game.size_snake // 2), game.size_snake // 2)
