@@ -1,12 +1,11 @@
-from keras.optimizers import Adam
-from keras.models import Sequential
-from keras.layers.core import Activation, Dropout, Dense
 import random
 import numpy as np
+import math
 from enum import Enum
 from operator import add
-import math
-import json
+from keras.models import Sequential
+from keras.optimizers import Adam
+from keras.layers.core import Activation, Dropout, Dense
 
 class Direction(Enum):
     NORTH = 1
@@ -21,19 +20,14 @@ class SnakeAgent(object):
         self.gamma = gamma
         self.neurons = 120
         self.max_memory = 1000
-        self.agent_target = 1
-        self.agent_predict = 0
         self.alpha = alpha
-        self.model = self.network()
-        if len(weights_file)>0:
-            self.model = self.network(weights_file)
+        self.model = self.__get_network(weights_file)
         self.epsilon = epsilon
-        self.actual = []
         self.memory = []
         self.old_to_food = 0
         self.new_to_food = 1
 
-    def get_direction(self, player):
+    def __get_direction(self, player):
         speeds = [player.x_speed, player.y_speed]
         if speeds == [1,0]:
             return Direction.WEST
@@ -46,7 +40,7 @@ class SnakeAgent(object):
         else:
             return 0
     
-    def get_dangers(self, game, player):
+    def __get_dangers(self, game, player):
         x = player.position[-1][0]
         y = player.position[-1][1]
         result = {}
@@ -56,9 +50,9 @@ class SnakeAgent(object):
         result[Direction.EAST] = [x - 1, y] in player.position or x < 1
         return result
     
-    def get_dir_dangers(self, game, player):
-        dir = self.get_direction(player)
-        dangers = self.get_dangers(game, player)
+    def __get_dir_dangers(self, game, player):
+        dir = self.__get_direction(player)
+        dangers = self.__get_dangers(game, player)
         result = [True,True,True]
         if dir == Direction.NORTH:
             result = [
@@ -92,7 +86,7 @@ class SnakeAgent(object):
         self.old_to_food = self.new_to_food
         self.new_to_food = math.sqrt(a*a+b*b)
 
-        dangers = self.get_dir_dangers(game,game.player)
+        dangers = self.__get_dir_dangers(game,game.player)
 
         state = [
             dangers[0],
@@ -115,7 +109,10 @@ class SnakeAgent(object):
         return np.array(real_state)
     
     def get_prediction(self, state):
-        return self.model.predict(state.reshape((1,12)))
+        return self.model.predict(self.__shape_state(state))
+
+    def __shape_state(self,state):
+        return np.array([state])
 
     def get_reward(self, game):
         self.reward = 0
@@ -131,49 +128,48 @@ class SnakeAgent(object):
             self.reward = -0.1
         return self.reward
 
-    def network(self, weights=None):
+    def __get_network(self, weights=None):
         model = Sequential()
-
+        # layer 1
         model.add(Dense(units = self.neurons, input_dim = 12))
         model.add(Activation('relu'))
         model.add(Dropout(0.14))
-
+        # layer 2
         model.add(Dense(units = self.neurons))
         model.add(Activation('relu'))
         model.add(Dropout(0.14))
-
+        # layer 3
         model.add(Dense(units = self.neurons))
         model.add(Activation('relu'))
         model.add(Dropout(0.14))
-
+        # output
         model.add(Dense(units = 3))
         model.add(Activation('softmax'))
 
-        opt = Adam(self.alpha)
-        model.compile(loss = 'mse', optimizer = opt)
+        model.compile(loss = 'mse', optimizer = Adam(self.alpha))
 
-        if weights:
+        if len(weights) > 0:
             model.load_weights(weights)
         return model
-
-    def replay(self):
-        if len(self.memory) > self.max_memory:
-            mem_part = random.sample(self.memory, self.max_memory)
-        else:
-            mem_part = self.memory
-        for state_old, state_new, action, reward, done in mem_part:
-            target = reward
-            if not done:
-                target = reward + self.gamma * np.amax(self.model.predict(np.array([state_new]))[0])
-            target_f = self.model.predict(np.array([state_old]))
-            target_f[0][np.argmax(action)] = target
-            self.model.fit(np.array([state_old]), target_f, epochs=1, verbose=0)
-
-    def train_short_memory(self, state_old, state_new, action, reward, done):
-        target = reward
+    
+    def __get_target_reward(self, reward, state, done):
         if not done:
-            target = reward + self.gamma * np.amax(self.model.predict(state_new.reshape((1, 12)))[0])
-        target_f = self.model.predict(state_old.reshape((1, 12)))
-        target_f[0][np.argmax(action)] = target
-        self.model.fit(state_old.reshape((1, 12)), target_f, epochs=1, verbose=0)
+            return reward + self.gamma * np.amax(self.get_prediction(state)[0])
+        else:
+            return reward
+
+    def restart(self):
+        mem_part = random.sample(self.memory, min(len(self.memory),self.max_memory))
+        for mem_cell in mem_part:
+            (state_old, state_new, action, reward, done) = mem_cell
+            self.__train(state_old, state_new, action, reward, done)
+
+    def train_memory(self, state_old, state_new, action, reward, done):
+        self.__train(state_old, state_new, action, reward, done)
         self.memory.append((state_old, state_new, action, reward, done))
+    
+    def __train(self, state_old, state_new, action, reward, done):
+        target = self.get_prediction(state_old)
+        target[0][np.argmax(action)] = self.__get_target_reward(reward, state_new, done)
+        self.model.fit(self.__shape_state(state_old), target, epochs=1, verbose=0)
+        
