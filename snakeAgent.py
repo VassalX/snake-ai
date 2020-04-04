@@ -13,10 +13,17 @@ class Direction(Enum):
     SOUTH = 3
     EAST = 4
 
+class Experience(object):
+    def __init__(self, state_old, state_new, action, reward, done):
+        self.state_old = state_old
+        self.state_new = state_new
+        self.action = action
+        self.reward = reward
+        self.done = done
+
 class SnakeAgent(object):
 
     def __init__(self, epsilon, gamma, alpha, weights_file):
-        self.reward = 0
         self.gamma = gamma
         self.neurons = 120
         self.max_memory = 1000
@@ -27,8 +34,8 @@ class SnakeAgent(object):
         self.old_to_food = 0
         self.new_to_food = 1
 
-    def __get_direction(self, player):
-        speeds = [player.x_speed, player.y_speed]
+    def __get_direction(self, snake):
+        speeds = [snake.x_speed, snake.y_speed]
         if speeds == [1,0]:
             return Direction.WEST
         elif speeds == [-1,0]:
@@ -40,19 +47,19 @@ class SnakeAgent(object):
         else:
             return 0
     
-    def __get_dangers(self, game, player):
-        x = player.position[-1][0]
-        y = player.position[-1][1]
+    def __get_dangers(self, game, snake):
+        x = snake.body[-1][0]
+        y = snake.body[-1][1]
         result = {}
-        result[Direction.NORTH] = [x, y-1] in player.position or y < 1
-        result[Direction.WEST] = [x + 1, y] in player.position or x + 1 >= game.cols
-        result[Direction.SOUTH] = [x, y + 1] in player.position or y + 1 >= game.rows
-        result[Direction.EAST] = [x - 1, y] in player.position or x < 1
+        result[Direction.NORTH] = [x, y-1] in snake.body or y < 1
+        result[Direction.WEST] = [x + 1, y] in snake.body or x + 1 >= game.cols
+        result[Direction.SOUTH] = [x, y + 1] in snake.body or y + 1 >= game.rows
+        result[Direction.EAST] = [x - 1, y] in snake.body or x < 1
         return result
     
-    def __get_dir_dangers(self, game, player):
-        dir = self.__get_direction(player)
-        dangers = self.__get_dangers(game, player)
+    def __get_dir_dangers(self, game, snake):
+        dir = self.__get_direction(snake)
+        dangers = self.__get_dangers(game, snake)
         result = [True,True,True]
         if dir == Direction.NORTH:
             result = [
@@ -81,26 +88,26 @@ class SnakeAgent(object):
         return result
 
     def get_state(self, game):
-        a = game.player.position[-1][0]-game.food.x
-        b = game.player.position[-1][1]-game.food.y
+        a = game.snake.body[-1][0]-game.food.x
+        b = game.snake.body[-1][1]-game.food.y
         self.old_to_food = self.new_to_food
         self.new_to_food = math.sqrt(a*a+b*b)
 
-        dangers = self.__get_dir_dangers(game,game.player)
+        dangers = self.__get_dir_dangers(game,game.snake)
 
         state = [
             dangers[0],
             dangers[1],
             dangers[2],
 
-            game.player.x_speed == -1, 
-            game.player.x_speed == 1,
-            game.player.y_speed == -1, 
-            game.player.y_speed == 1,
-            game.food.x < game.player.x, 
-            game.food.x > game.player.x,
-            game.food.y < game.player.y, 
-            game.food.y > game.player.y,
+            game.snake.x_speed == -1, 
+            game.snake.x_speed == 1,
+            game.snake.y_speed == -1, 
+            game.snake.y_speed == 1,
+            game.food.x < game.snake.x, 
+            game.food.x > game.snake.x,
+            game.food.y < game.snake.y, 
+            game.food.y > game.snake.y,
             self.new_to_food < self.old_to_food
             ]
         
@@ -114,19 +121,19 @@ class SnakeAgent(object):
     def __shape_state(self,state):
         return np.array([state])
 
-    def get_reward(self, game):
-        self.reward = 0
+    def get_reward(self,game):
+        reward = 0
         if game.game_over:
-            self.reward = -20
-            return self.reward
-        if game.player.must_grow:
-            self.reward = 10
-            return self.reward
+            reward = -20
+            return reward
+        if game.snake.must_grow:
+            reward = 10
+            return reward
         if self.new_to_food < self.old_to_food:
-            self.reward = 0.2
+            reward = 0.2
         elif self.new_to_food > self.old_to_food:
-            self.reward = -0.1
-        return self.reward
+            reward = -0.1
+        return reward
 
     def __get_network(self, weights=None):
         model = Sequential()
@@ -153,23 +160,23 @@ class SnakeAgent(object):
         return model
     
     def __get_target_reward(self, reward, state, done):
+        result = reward
         if not done:
-            return reward + self.gamma * np.amax(self.get_prediction(state)[0])
-        else:
-            return reward
+            result += self.gamma * np.amax(self.get_prediction(state)[0])
+        return result
 
     def restart(self):
         mem_part = random.sample(self.memory, min(len(self.memory),self.max_memory))
-        for mem_cell in mem_part:
-            (state_old, state_new, action, reward, done) = mem_cell
-            self.__train(state_old, state_new, action, reward, done)
+        for exp in mem_part:
+            self.__train(exp)
 
     def train_memory(self, state_old, state_new, action, reward, done):
-        self.__train(state_old, state_new, action, reward, done)
-        self.memory.append((state_old, state_new, action, reward, done))
+        exp = Experience(state_old, state_new, action, reward, done)
+        self.__train(exp)
+        self.memory.append(exp)
     
-    def __train(self, state_old, state_new, action, reward, done):
-        target = self.get_prediction(state_old)
-        target[0][np.argmax(action)] = self.__get_target_reward(reward, state_new, done)
-        self.model.fit(self.__shape_state(state_old), target, epochs=1, verbose=0)
+    def __train(self, exp):
+        target = self.get_prediction(exp.state_old)
+        target[0][np.argmax(exp.action)] = self.__get_target_reward(exp.reward, exp.state_new, exp.done)
+        self.model.fit(self.__shape_state(exp.state_old), target, epochs=1, verbose=0)
         

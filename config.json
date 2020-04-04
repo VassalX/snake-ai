@@ -6,7 +6,7 @@
     "speed": 0,
     "max_steps": 500,
     "weights_file": "",
-    "save_file": "snake95.hdf5",
+    "save_file": "snake1.hdf5",
     "games_number": 200,
     "epsilon": 0.8,
     "delta_epsilon": 0.01,

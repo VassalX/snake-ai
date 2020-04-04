@@ -17,7 +17,9 @@ class Game:
     def __init__(self, cols, rows, size_snake, border_size, 
         border_color, background_color, food_color, snake_color,
         speed, max_steps):
-        pygame.display.set_caption('Smart Snake')
+        self.game_over = False
+        self.score = 0
+        self.eat_time = 0
         self.border_color = border_color
         self.background_color = background_color
         self.food_color = food_color
@@ -31,11 +33,9 @@ class Game:
         self.window_width = cols*self.size_snake + self.border_size*2
         self.window_height = rows*self.size_snake + self.border_size*2
         self.pygame_display = pygame.display.set_mode((self.window_width, self.window_height + 40))
-        self.game_over = False
-        self.player = Player(self)
-        self.food = Food(self,self.player)
-        self.score = 0
-        self.eat_time = 0
+        self.snake = Snake(self)
+        self.food = Food(self,self.snake)
+        pygame.display.set_caption('Smart Snake')
         
 
     def __show_ui(self):
@@ -64,13 +64,13 @@ class Game:
             [[pt_x, pt_y + self.size_snake//2],[pt_x + self.size_snake//2, pt_y + self.size_snake//2],[pt_x + self.size_snake, pt_y + self.size_snake//2]], \
             [[pt_x, pt_y + self.size_snake],[pt_x + self.size_snake//2, pt_y + self.size_snake],[pt_x + self.size_snake, pt_y + self.size_snake]]]
         
-        if [self.player.x_speed,self.player.y_speed] == [1,0]:
+        if [self.snake.x_speed,self.snake.y_speed] == [1,0]:
             pygame.draw.polygon(self.pygame_display, self.food_color,[arrow_pts[0][0], arrow_pts[2][0], arrow_pts[1][2]])
-        elif [self.player.x_speed,self.player.y_speed] == [-1,0]:
+        elif [self.snake.x_speed,self.snake.y_speed] == [-1,0]:
             pygame.draw.polygon(self.pygame_display, self.food_color,[arrow_pts[0][2], arrow_pts[2][2], arrow_pts[1][0]])
-        elif [self.player.x_speed,self.player.y_speed] == [0,1]:
+        elif [self.snake.x_speed,self.snake.y_speed] == [0,1]:
             pygame.draw.polygon(self.pygame_display, self.food_color,[arrow_pts[0][0], arrow_pts[0][2], arrow_pts[2][1]])
-        elif [self.player.x_speed,self.player.y_speed] == [0,-1]:
+        elif [self.snake.x_speed,self.snake.y_speed] == [0,-1]:
             pygame.draw.polygon(self.pygame_display, self.food_color,[arrow_pts[2][0], arrow_pts[2][2], arrow_pts[0][1]])
 
     def __show_txt(self,txt, x, y):
@@ -88,16 +88,16 @@ class Game:
         self.__show_ui()
         if not self.game_over:
             self.food.show(self)
-            self.player.show(self)
+            self.snake.show(self)
         else:
             pygame.time.wait(300)
-        pygame.display.update()
+        pygame.display.flip()
     
     def make_step(self, agent):
         state = agent.get_state(self)
         prediction = agent.get_prediction(state)
         action = to_categorical(np.argmax(prediction[0]), num_classes=3)
-        self.player.move(action,self)
+        self.snake.move(action,self)
         if self.speed > 0:
             self.show()
             pygame.time.wait(self.speed)
@@ -111,7 +111,7 @@ class Game:
                 action = to_categorical(np.argmax(prediction[0]), num_classes=3)
             else:
                 action = to_categorical(random.randint(0, 2), num_classes=3)
-        self.player.move(action, self)
+        self.snake.move(action, self)
         state_new = agent.get_state(self)
         reward = agent.get_reward(self)
         agent.train_memory(state_old, state_new, action, reward, self.game_over)
@@ -119,13 +119,12 @@ class Game:
             self.show()
             pygame.time.wait(self.speed)
 
-class Player(object):
+class Snake(object):
 
     def __init__(self, game):
         self.x = game.cols // 2
         self.y = game.rows // 2
-        self.position = []
-        self.position.append([self.x, self.y])
+        self.body = [[self.x, self.y]]
         self.length = 1
         self.must_grow = False
         self.x_speed = 1
@@ -136,7 +135,7 @@ class Player(object):
 
         if self.must_grow:
             self.length = self.length + 1
-            self.position.append([self.x, self.y])
+            self.body.append([self.x, self.y])
             game.eat_time = 0
             self.must_grow = False
 
@@ -172,7 +171,7 @@ class Player(object):
         self.x += self.x_speed
         self.y += self.y_speed
 
-        if game.eat_time >= game.max_steps or self.x < 0 or self.x >= game.cols or self.y < 0 or self.y >= game.rows or [self.x, self.y] in self.position:
+        if game.eat_time >= game.max_steps or self.x < 0 or self.x >= game.cols or self.y < 0 or self.y >= game.rows or [self.x, self.y] in self.body:
             game.game_over = True
         
         game.eat_time += 1
@@ -183,31 +182,31 @@ class Player(object):
             if game.score > Game.record:
                 Game.record = game.score
 
-        if self.position[-1] != [self.x, self.y]:
+        if self.body[-1] != [self.x, self.y]:
             if self.length > 1:
                 for i in range(0, self.length - 1):
-                    self.position[i] = self.position[i + 1]
-            self.position[-1] = [self.x, self.y]
+                    self.body[i] = self.body[i + 1]
+            self.body[-1] = [self.x, self.y]
 
     def show(self, game):
         for i in range(self.length):
-            x_temp, y_temp = self.position[i]
+            x_temp, y_temp = self.body[i]
             posX = x_temp * game.size_snake + game.border_size
             posY = y_temp * game.size_snake + game.border_size
             pygame.draw.rect(game.pygame_display, game.snake_color, [posX + 1,posY + 1, game.size_snake - 2, game.size_snake - 2])
 
 class Food(object):
 
-    def __init__(self,game,player):
-        self.x = player.position[-1][0]+2
-        self.y = player.position[-1][1]+2
-        self.random_pos(game,player)
+    def __init__(self,game,snake):
+        self.x = snake.body[-1][0]+2
+        self.y = snake.body[-1][1]+2
+        self.random_pos(game,snake)
 
-    def random_pos(self, game, player):
+    def random_pos(self, game, snake):
         self.x = random.randint(0, game.cols - 1)
         self.y = random.randint(0, game.rows - 1)
-        if [self.x, self.y] in player.position:
-            return self.random_pos(game,player)
+        if [self.x, self.y] in snake.body:
+            return self.random_pos(game,snake)
         else:
             return self.x, self.y
 
