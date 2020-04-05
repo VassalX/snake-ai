@@ -26,11 +26,11 @@ class SnakeAgent(object):
     def __init__(self, epsilon, gamma, alpha, weights_file):
         self.gamma = gamma
         self.neurons = 120
-        self.max_memory = 1000
+        self.max_experiences = 1000
         self.alpha = alpha
         self.model = self.__get_network(weights_file)
         self.epsilon = epsilon
-        self.memory = []
+        self.experiences = []
         self.old_to_food = 0
         self.new_to_food = 1
 
@@ -166,16 +166,16 @@ class SnakeAgent(object):
         return result
 
     def restart(self):
-        mem_part = random.sample(self.memory, min(len(self.memory),self.max_memory))
-        for exp in mem_part:
-            self.__train(exp)
+        exp_part = random.sample(self.experiences, min(len(self.experiences),self.max_experiences))
+        for exp in exp_part:
+            self.__train_target(exp)
 
-    def train_memory(self, state_old, state_new, action, reward, done):
+    def train(self, state_old, state_new, action, reward, done):
         exp = Experience(state_old, state_new, action, reward, done)
-        self.__train(exp)
-        self.memory.append(exp)
+        self.__train_target(exp)
+        self.experiences.append(exp)
     
-    def __train(self, exp):
+    def __train_target(self, exp):
         target = self.get_prediction(exp.state_old)
         target[0][np.argmax(exp.action)] = self.__get_target_reward(exp.reward, exp.state_new, exp.done)
         self.model.fit(self.__shape_state(exp.state_old), target, epochs=1, verbose=0)

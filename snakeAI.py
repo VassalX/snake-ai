@@ -83,6 +83,7 @@ agent = SnakeAgent(epsilon, gamma, alpha, weights_file)
 array_score = []
 array_num = []
 for game_num in range(games_number):
+    pygame.display.set_caption('Smart Snake #' + str(game_num+1))
     if train:
         score = play_train_game(agent)
         agent.epsilon -= delta_epsilon

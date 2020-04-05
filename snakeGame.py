@@ -32,10 +32,9 @@ class Game:
         self.border_size = border_size
         self.window_width = cols*self.size_snake + self.border_size*2
         self.window_height = rows*self.size_snake + self.border_size*2
-        self.pygame_display = pygame.display.set_mode((self.window_width, self.window_height + 40))
+        self.pygame_display = pygame.display.set_mode((self.window_width, self.window_height + max(40,size_snake+border_size*2)))
         self.snake = Snake(self)
         self.food = Food(self,self.snake)
-        pygame.display.set_caption('Smart Snake')
         
 
     def __show_ui(self):
@@ -114,7 +113,7 @@ class Game:
         self.snake.move(action, self)
         state_new = agent.get_state(self)
         reward = agent.get_reward(self)
-        agent.train_memory(state_old, state_new, action, reward, self.game_over)
+        agent.train(state_old, state_new, action, reward, self.game_over)
         if self.speed > 0:
             self.show()
             pygame.time.wait(self.speed)

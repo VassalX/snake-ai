@@ -3,7 +3,7 @@
     "field_cols": 20,
     "size_snake": 20,
     "border_size": 5,
-    "speed": 0,
+    "speed": 10,
     "max_steps": 500,
     "weights_file": "",
     "save_file": "snake1.hdf5",
